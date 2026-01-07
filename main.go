@@ -17,10 +17,13 @@ package main
 import (
 	"context"
 	"embed"
+	"flag"
 	"fmt"
 	"io"
 	"io/fs"
 	"log"
+	"os"
+	"runtime/debug"
 
 	"github.com/adrg/frontmatter"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -29,8 +32,37 @@ import (
 //go:embed prompts/*.md
 var promptfs embed.FS
 
-// TODO: make a --version flag to print build info. this helps correlate with version controlled prompt text.
 func main() {
+	version := flag.Bool("version", false, "print build version and exit")
+	flag.Parse()
+
+	if *version {
+		if info, ok := debug.ReadBuildInfo(); ok {
+			var revision string
+			var modified bool
+			for _, setting := range info.Settings {
+				if setting.Key == "vcs.revision" {
+					revision = setting.Value
+				}
+				if setting.Key == "vcs.modified" && setting.Value == "true" {
+					modified = true
+				}
+			}
+			if revision != "" {
+				fmt.Printf("commit: %s", revision)
+				if modified {
+					fmt.Print(" (dirty)")
+				}
+				fmt.Println()
+			} else {
+				fmt.Println("build info not available")
+			}
+		} else {
+			fmt.Println("build info not available")
+		}
+		os.Exit(0)
+	}
+
 	server := mcp.NewServer(&mcp.Implementation{Name: "personal-mcp"}, nil)
 
 	// Add prompts from the embedded prompt filesystem.
