@@ -29,6 +29,7 @@ import (
 //go:embed prompts/*.md
 var promptfs embed.FS
 
+// TODO: make a --version flag to print build info. this helps correlate with version controlled prompt text.
 func main() {
 	server := mcp.NewServer(&mcp.Implementation{Name: "personal-mcp"}, nil)
 
