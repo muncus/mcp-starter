@@ -77,13 +77,10 @@ func main() {
 		if err != nil {
 			log.Printf("failed to read file %s: %v", fn, err)
 		}
-		p, ph, err := fromMarkdown(f)
+		err = addFromMarkdown(server, f)
 		if err != nil {
-			log.Printf("failed to parse prompt file %s: %v", fn, err)
+			log.Printf("failed to add file %s: %v", fn, err)
 		}
-		server.AddPrompt(&p, ph)
-		log.Printf("added %#v", p)
-
 	}
 
 	// Run the server on the stdio transport.
@@ -97,14 +94,14 @@ type PromptMetadata struct {
 	Description string `yaml:"description"`
 }
 
-func fromMarkdown(f io.Reader) (mcp.Prompt, mcp.PromptHandler, error) {
+func addFromMarkdown(s *mcp.Server, f io.Reader) error {
 	var meta PromptMetadata
 	content, err := frontmatter.Parse(f, &meta)
 	if err != nil {
-		return mcp.Prompt{}, nil, fmt.Errorf("error reading prompt: %w", err)
+		return fmt.Errorf("error reading prompt: %w", err)
 	}
 	if meta.Name == "" {
-		return mcp.Prompt{}, nil, fmt.Errorf("no metadata found. skipping.")
+		return fmt.Errorf("no metadata found. skipping.")
 	}
 	var ph mcp.PromptHandler = func(ctx context.Context, gpr *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
 
@@ -117,5 +114,6 @@ func fromMarkdown(f io.Reader) (mcp.Prompt, mcp.PromptHandler, error) {
 			},
 		}, nil
 	}
-	return mcp.Prompt{Name: meta.Name, Description: meta.Description}, ph, nil
+	s.AddPrompt(&mcp.Prompt{Name: meta.Name, Description: meta.Description}, ph)
+	return nil
 }
