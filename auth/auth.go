@@ -13,9 +13,8 @@ import (
 	"github.com/spf13/viper"
 	"github.com/urfave/cli/v3"
 	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/google"
-	analyticsdata "google.golang.org/api/analyticsdata/v1alpha"
-	"google.golang.org/api/sheets/v4"
+
+	_ "github.com/muncus/mcp-starter/auth/providers/google"
 )
 
 //go:embed interstitial.html
@@ -27,6 +26,7 @@ type TemplateData struct {
 	Success      bool
 	Error        bool
 	ErrorMessage string
+	Scopes       []Scope
 }
 
 func renderTemplate(w http.ResponseWriter, data TemplateData) {
@@ -40,21 +40,51 @@ func renderTemplate(w http.ResponseWriter, data TemplateData) {
 
 func AuthAction() func(ctx context.Context, cmd *cli.Command) error {
 	return func(ctx context.Context, cmd *cli.Command) error {
-		config := &oauth2.Config{
-			ClientID:     viper.GetString("oauth.client_id"),
-			ClientSecret: viper.GetString("oauth.client_secret"),
-			Endpoint:     google.Endpoint,
-			RedirectURL:  "http://localhost:8080",
-		}
-		if config.ClientID == "" || config.ClientSecret == "" {
-			log.Fatalf("oauth.client_id and oauth.client_secret must be set in config file.")
+		providerName := cmd.String("provider")
+		if providerName == "" {
+			providerName = "google"
 		}
 
-		token, err := getTokenFromWeb(config)
+		provider, ok := GetProvider(providerName)
+		if !ok {
+			return fmt.Errorf("unknown OAuth provider: %s", providerName)
+		}
+
+		clientIDKey := fmt.Sprintf("oauth.%s.client_id", providerName)
+		clientSecretKey := fmt.Sprintf("oauth.%s.client_secret", providerName)
+
+		clientID := viper.GetString(clientIDKey)
+		clientSecret := viper.GetString(clientSecretKey)
+
+		// Legacy back-compat for default Google configuration
+		if providerName == "google" {
+			if clientID == "" {
+				clientID = viper.GetString("oauth.client_id")
+			}
+			if clientSecret == "" {
+				clientSecret = viper.GetString("oauth.client_secret")
+			}
+		}
+
+		if clientID == "" || clientSecret == "" {
+			log.Fatalf("OAuth credentials for '%s' must be configured under 'oauth.%s.client_id' and 'oauth.%s.client_secret'.", providerName, providerName, providerName)
+		}
+
+		provider.ClientID = clientID
+		provider.ClientSecret = clientSecret
+
+		token, err := getTokenFromWeb(&provider)
 		if err != nil {
 			return fmt.Errorf("failed to get token from web: %w", err)
 		}
-		viper.Set("oauth.token", token)
+
+		tokenKey := fmt.Sprintf("oauth.%s.token", providerName)
+		viper.Set(tokenKey, token)
+
+		// Legacy back-compat
+		if providerName == "google" {
+			viper.Set("oauth.token", token)
+		}
 
 		if err := viper.WriteConfig(); err != nil {
 			return err
@@ -67,34 +97,68 @@ func AuthAction() func(ctx context.Context, cmd *cli.Command) error {
 
 func Command() *cli.Command {
 	return &cli.Command{
-		Name:   "auth",
-		Usage:  "Authenticate with Google APIs",
+		Name:  "auth",
+		Usage: "Authenticate with Google APIs",
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:    "provider",
+				Aliases: []string{"p"},
+				Usage:   "OAuth provider to authenticate with (e.g. google)",
+				Value:   "google",
+			},
+		},
 		Action: AuthAction(),
 	}
 }
 
 func GetClient() (*http.Client, error) {
+	providerName := "google"
+	provider, ok := GetProvider(providerName)
+	if !ok {
+		return nil, fmt.Errorf("default provider 'google' not registered")
+	}
+
+	clientID := viper.GetString("oauth.google.client_id")
+	clientSecret := viper.GetString("oauth.google.client_secret")
+	if clientID == "" {
+		clientID = viper.GetString("oauth.client_id")
+	}
+	if clientSecret == "" {
+		clientSecret = viper.GetString("oauth.client_secret")
+	}
+
 	config := &oauth2.Config{
-		ClientID:     viper.GetString("oauth.client_id"),
-		ClientSecret: viper.GetString("oauth.client_secret"),
-		Endpoint:     google.Endpoint,
-		Scopes:       []string{sheets.SpreadsheetsScope, analyticsdata.AnalyticsReadonlyScope, sheets.DriveReadonlyScope},
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+		Endpoint:     provider.Endpoint,
 	}
 
 	var token oauth2.Token
-	if err := viper.UnmarshalKey("oauth.token", &token); err != nil {
+	tokenKey := "oauth.google.token"
+	if !viper.IsSet(tokenKey) {
+		tokenKey = "oauth.token"
+	}
+
+	if err := viper.UnmarshalKey(tokenKey, &token); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal oauth.token: %w", err)
 	}
 
 	return config.Client(context.Background(), &token), nil
 }
 
-func getTokenFromWeb(config *oauth2.Config) (*oauth2.Token, error) {
+func getTokenFromWeb(provider *Provider) (*oauth2.Token, error) {
 	type tokenResult struct {
 		token *oauth2.Token
 		err   error
 	}
 	resultChan := make(chan tokenResult)
+
+	config := &oauth2.Config{
+		ClientID:     provider.ClientID,
+		ClientSecret: provider.ClientSecret,
+		Endpoint:     provider.Endpoint,
+		RedirectURL:  provider.RedirectURL,
+	}
 
 	var mu sync.Mutex
 	var activeConfig = *config // local copy of config structure
@@ -118,6 +182,7 @@ func getTokenFromWeb(config *oauth2.Config) (*oauth2.Token, error) {
 				renderTemplate(w, TemplateData{
 					Error:        true,
 					ErrorMessage: fmt.Sprintf("Failed to exchange code for token: %v", err),
+					Scopes:       provider.Scopes,
 				})
 				// Send error back but don't block
 				go func() { resultChan <- tokenResult{err: err} }()
@@ -126,6 +191,7 @@ func getTokenFromWeb(config *oauth2.Config) (*oauth2.Token, error) {
 
 			renderTemplate(w, TemplateData{
 				Success: true,
+				Scopes:  provider.Scopes,
 			})
 			go func() { resultChan <- tokenResult{token: tok} }()
 			return
@@ -134,14 +200,17 @@ func getTokenFromWeb(config *oauth2.Config) (*oauth2.Token, error) {
 		if errStr := query.Get("error"); errStr != "" {
 			renderTemplate(w, TemplateData{
 				Error:        true,
-				ErrorMessage: fmt.Sprintf("Authorization error from Google: %s", errStr),
+				ErrorMessage: fmt.Sprintf("Authorization error from OAuth provider: %s", errStr),
+				Scopes:       provider.Scopes,
 			})
-			go func() { resultChan <- tokenResult{err: fmt.Errorf("authorization error from Google: %s", errStr)} }()
+			go func() { resultChan <- tokenResult{err: fmt.Errorf("authorization error from OAuth provider: %s", errStr)} }()
 			return
 		}
 
-		// Otherwise, serve the scope selection form
-		renderTemplate(w, TemplateData{})
+		// Otherwise, serve the scope selection form dynamically
+		renderTemplate(w, TemplateData{
+			Scopes: provider.Scopes,
+		})
 	})
 
 	mux.HandleFunc("/authorize", func(w http.ResponseWriter, r *http.Request) {
@@ -160,6 +229,7 @@ func getTokenFromWeb(config *oauth2.Config) (*oauth2.Token, error) {
 			renderTemplate(w, TemplateData{
 				Error:        true,
 				ErrorMessage: "Please select at least one scope to authorize.",
+				Scopes:       provider.Scopes,
 			})
 			return
 		}
@@ -198,4 +268,5 @@ func getTokenFromWeb(config *oauth2.Config) (*oauth2.Token, error) {
 
 	return res.token, res.err
 }
+
 

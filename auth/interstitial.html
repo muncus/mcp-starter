@@ -429,53 +429,18 @@
                     <span class="section-title">permissions</span>
                     
                     <div class="scopes-list">
-                        <!-- Scope 1: Sheets -->
-                        <div class="scope-item selected" onclick="toggleSelect(this)">
+                        {{range .Scopes}}
+                        <div class="scope-item{{if .Default}} selected{{end}}" onclick="toggleSelect(this)">
                             <div class="checkbox-box">
                                 <div class="checkbox-inner"></div>
                             </div>
-                            <input type="checkbox" name="scopes" value="https://www.googleapis.com/auth/spreadsheets" class="hidden-checkbox" checked>
+                            <input type="checkbox" name="scopes" value="{{.Value}}" class="hidden-checkbox"{{if .Default}} checked{{end}}>
                             <div class="scope-details">
-                                <div class="scope-name">Google Sheets</div>
-                                <div class="scope-desc">Read, create, and update your Google Sheets spreadsheets.</div>
+                                <div class="scope-name">{{.Name}}</div>
+                                <div class="scope-desc">{{.Description}}</div>
                             </div>
                         </div>
-
-                        <!-- Scope 2: Drive Readonly -->
-                        <div class="scope-item selected" onclick="toggleSelect(this)">
-                            <div class="checkbox-box">
-                                <div class="checkbox-inner"></div>
-                            </div>
-                            <input type="checkbox" name="scopes" value="https://www.googleapis.com/auth/drive.readonly" class="hidden-checkbox" checked>
-                            <div class="scope-details">
-                                <div class="scope-name">Google Drive (Read-only)</div>
-                                <div class="scope-desc">Search, list, and read contents/metadata of files.</div>
-                            </div>
-                        </div>
-
-                        <!-- Scope 3: Analytics Readonly -->
-                        <div class="scope-item selected" onclick="toggleSelect(this)">
-                            <div class="checkbox-box">
-                                <div class="checkbox-inner"></div>
-                            </div>
-                            <input type="checkbox" name="scopes" value="https://www.googleapis.com/auth/analytics.readonly" class="hidden-checkbox" checked>
-                            <div class="scope-details">
-                                <div class="scope-name">Google Analytics (Read-only)</div>
-                                <div class="scope-desc">View your Google Analytics reports and tracking data.</div>
-                            </div>
-                        </div>
-
-                        <!-- Scope 4: Cloud Platform -->
-                        <div class="scope-item" onclick="toggleSelect(this)">
-                            <div class="checkbox-box">
-                                <div class="checkbox-inner"></div>
-                            </div>
-                            <input type="checkbox" name="scopes" value="https://www.googleapis.com/auth/cloud-platform" class="hidden-checkbox">
-                            <div class="scope-details">
-                                <div class="scope-name">Google Cloud Platform</div>
-                                <div class="scope-desc">Full management access to your Google Cloud Platform projects.</div>
-                            </div>
-                        </div>
+                        {{end}}
                     </div>
 
                     <button type="submit" class="btn btn-primary">authorize selected scopes</button>
