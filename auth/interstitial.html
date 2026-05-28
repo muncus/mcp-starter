@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>mcp-starter // authorization</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* Polar Night (Dark mode) by default */
+            --background: #1a1e24;
+            --foreground: #d8dee9;
+            --card: #21262e;
+            --card-foreground: #d8dee9;
+            --primary: #88c0d0;
+            --primary-foreground: #1a1e24;
+            --muted: #282e37;
+            --muted-foreground: #8e99a8;
+            --border: #3b4252;
+            --border-hover: #4c566a;
+            --destructive: #d4737c;
+            --destructive-foreground: #1a1e24;
+
+            /* HSL triplets for extended colors */
+            --smui-frost-1: 179 25% 65%;   /* #8fbcbb */
+            --smui-frost-2: 193 44% 67%;   /* #88c0d0 */
+            --smui-frost-3: 210 29% 63%;   /* #81a1c1 */
+            --smui-frost-4: 213 32% 44%;   /* #4c6d94 */
+            --smui-green: 92 28% 65%;      /* #a3be8c */
+            --smui-yellow: 40 71% 73%;     /* #ebcb8b */
+            --smui-orange: 14 51% 63%;     /* #d08770 */
+            --smui-red: 354 54% 64%;       /* #d4737c */
+            --smui-purple: 311 20% 63%;    /* #b48ead */
+            
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        @media (prefers-color-scheme: light) {
+            :root {
+                --background: #eceff4;
+                --foreground: #2e3440;
+                --card: #e5e9f0;
+                --card-foreground: #2e3440;
+                --primary: #4c6d94;
+                --primary-foreground: #eceff4;
+                --muted: #d8dee9;
+                --muted-foreground: #48505c;
+                --border: #c9cfda;
+                --border-hover: #abb3c2;
+                --destructive: #a3303d;
+                --destructive-foreground: #eceff4;
+            }
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            border-radius: 0 !important; /* Force zero radius globally */
+        }
+
+        body {
+            font-family: var(--font-mono);
+            background-color: var(--background);
+            color: var(--foreground);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem;
+        }
+
+        /* Top Navigation Bar */
+        .navbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3rem;
+            background-color: var(--card);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            padding: 0 1.5rem;
+            z-index: 10;
+        }
+
+        .navbar-brand {
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--foreground);
+        }
+
+        .container {
+            width: 100%;
+            max-width: 540px;
+            margin-top: 3rem; /* Leave space for navbar */
+        }
+
+        /* SMUI Card Layout */
+        .card {
+            background-color: var(--card);
+            border: 1px solid var(--border);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.65rem 0.85rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .card-title {
+            font-size: 14px;
+            font-weight: 500;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            color: var(--muted-foreground);
+        }
+
+        .card-status {
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+            font-size: 14px;
+            font-weight: 500;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .status-dot {
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            border-radius: 50% !important; /* Status dots are allowed to be rounded */
+        }
+
+        .status-dot.green { background-color: hsl(var(--smui-green)); }
+        .status-dot.yellow { background-color: hsl(var(--smui-yellow)); }
+        .status-dot.red { background-color: hsl(var(--smui-red)); }
+        .status-dot.purple { background-color: hsl(var(--smui-purple)); }
+
+        .card-content {
+            padding: 1.25rem;
+        }
+
+        .intro-text {
+            font-size: 16px;
+            line-height: 1.6;
+            color: var(--muted-foreground);
+            margin-bottom: 1.25rem;
+        }
+
+        /* Scopes List */
+        .section-title {
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            color: hsl(var(--smui-frost-2));
+            margin-bottom: 0.75rem;
+            display: block;
+        }
+
+        .scopes-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .scope-item {
+            display: flex;
+            align-items: flex-start;
+            padding: 0.85rem 1rem;
+            background-color: rgba(0, 0, 0, 0.1);
+            border: 1px solid var(--border);
+            cursor: pointer;
+            transition: all 0.15s ease;
+            user-select: none;
+        }
+
+        .scope-item:hover {
+            border-color: var(--border-hover);
+            background-color: rgba(0, 0, 0, 0.15);
+        }
+
+        .scope-item.selected {
+            border-color: var(--primary);
+            background-color: rgba(136, 192, 208, 0.04);
+        }
+
+        /* Checkbox Container */
+        .checkbox-box {
+            width: 16px;
+            height: 16px;
+            border: 1px solid var(--border);
+            margin-top: 2px;
+            margin-right: 0.85rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: var(--background);
+            transition: all 0.15s ease;
+            flex-shrink: 0;
+        }
+
+        .scope-item:hover .checkbox-box {
+            border-color: var(--border-hover);
+        }
+
+        .scope-item.selected .checkbox-box {
+            border-color: var(--primary);
+        }
+
+        .checkbox-inner {
+            width: 8px;
+            height: 8px;
+            background-color: var(--primary);
+            display: none;
+        }
+
+        .scope-item.selected .checkbox-inner {
+            display: block;
+        }
+
+        .hidden-checkbox {
+            position: absolute;
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .scope-details {
+            flex-grow: 1;
+        }
+
+        .scope-name {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--foreground);
+        }
+
+        .scope-desc {
+            font-size: 14px;
+            color: var(--muted-foreground);
+            margin-top: 0.25rem;
+            line-height: 1.4;
+        }
+
+        /* Button Styling */
+        .btn {
+            font-family: var(--font-mono);
+            font-size: 15px;
+            font-weight: 500;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            padding: 0.75rem 1.25rem;
+            border: 1px solid transparent;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background-color: var(--primary);
+            color: var(--primary-foreground);
+        }
+
+        .btn-primary:hover {
+            background-color: hsl(var(--smui-frost-3));
+        }
+
+        .btn-secondary {
+            background-color: transparent;
+            border: 1px solid var(--border);
+            color: var(--muted-foreground);
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--border-hover);
+            color: var(--foreground);
+            background-color: rgba(255, 255, 255, 0.02);
+        }
+
+        /* Alerts */
+        .alert {
+            border: 1px solid var(--border);
+            padding: 0.85rem;
+            display: flex;
+            gap: 0.75rem;
+            align-items: flex-start;
+            margin-bottom: 1.25rem;
+        }
+
+        .alert-icon {
+            width: 16px;
+            height: 16px;
+            margin-top: 1px;
+            flex-shrink: 0;
+        }
+
+        .alert-content {
+            flex-grow: 1;
+        }
+
+        .alert-title {
+            font-size: 15px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .alert-description {
+            font-size: 14px;
+            line-height: 1.5;
+            color: var(--muted-foreground);
+            margin-top: 0.25rem;
+        }
+
+        /* Custom Alert Theme Variants */
+        .alert.alert-success {
+            border-color: rgba(163, 190, 140, 0.35);
+            background-color: rgba(163, 190, 140, 0.05);
+        }
+        .alert-success .alert-title, .alert-success .alert-icon {
+            color: hsl(var(--smui-green));
+        }
+
+        .alert.alert-destructive {
+            border-color: rgba(212, 115, 124, 0.35);
+            background-color: rgba(212, 115, 124, 0.05);
+        }
+        .alert-destructive .alert-title, .alert-destructive .alert-icon {
+            color: hsl(var(--smui-red));
+        }
+
+        /* Footer */
+        .footer {
+            margin-top: 1.25rem;
+            text-align: center;
+            font-size: 13px;
+            color: var(--muted-foreground);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar">
+        <div class="navbar-brand">mcp-starter // authorization</div>
+    </nav>
+
+    <div class="container">
+        {{if .Success}}
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">authorization status</div>
+                <div class="card-status">
+                    <span class="status-dot green"></span>
+                    <span style="color: hsl(var(--smui-green));">nominal</span>
+                </div>
+            </div>
+            <div class="card-content">
+                <div class="alert alert-success">
+                    <svg class="alert-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div class="alert-content">
+                        <div class="alert-title">success</div>
+                        <div class="alert-description">
+                            The MCP server has successfully saved the OAuth credentials. You can now close this browser tab and return to your terminal.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {{else if .Error}}
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">authorization status</div>
+                <div class="card-status">
+                    <span class="status-dot red"></span>
+                    <span style="color: hsl(var(--smui-red));">critical</span>
+                </div>
+            </div>
+            <div class="card-content">
+                <div class="alert alert-destructive">
+                    <svg class="alert-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <div class="alert-content">
+                        <div class="alert-title">error</div>
+                        <div class="alert-description">
+                            {{.ErrorMessage}}
+                        </div>
+                    </div>
+                </div>
+                <a href="/" class="btn btn-primary">try again</a>
+            </div>
+        </div>
+        {{else}}
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">permission scope selection</div>
+                <div class="card-status">
+                    <span class="status-dot yellow"></span>
+                    <span style="color: hsl(var(--smui-yellow));">pending</span>
+                </div>
+            </div>
+            <div class="card-content">
+                <p class="intro-text">
+                    This personal Model Context Protocol (MCP) server requires access tokens to communicate with Google APIs. Select which permissions you want to grant:
+                </p>
+
+                <form action="/authorize" method="POST">
+                    <span class="section-title">permissions</span>
+                    
+                    <div class="scopes-list">
+                        {{range .Scopes}}
+                        <div class="scope-item{{if .Default}} selected{{end}}" onclick="toggleSelect(this)">
+                            <div class="checkbox-box">
+                                <div class="checkbox-inner"></div>
+                            </div>
+                            <input type="checkbox" name="scopes" value="{{.Value}}" class="hidden-checkbox"{{if .Default}} checked{{end}}>
+                            <div class="scope-details">
+                                <div class="scope-name">{{.Name}}</div>
+                                <div class="scope-desc">{{.Description}}</div>
+                            </div>
+                        </div>
+                        {{end}}
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">authorize selected scopes</button>
+                </form>
+            </div>
+        </div>
+        {{end}}
+
+        <div class="footer">
+            secured locally // redirects to google consent console
+        </div>
+    </div>
+
+    <script>
+        function toggleSelect(element) {
+            const checkbox = element.querySelector('.hidden-checkbox');
+            // Toggle the checked state
+            checkbox.checked = !checkbox.checked;
+            
+            // Toggle CSS classes
+            if (checkbox.checked) {
+                element.classList.add('selected');
+            } else {
+                element.classList.remove('selected');
+            }
+        }
+    </script>
+</body>
+</html>
